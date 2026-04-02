@@ -44,8 +44,10 @@ jobs:
 
       - name: Run concurrency tests
         working-directory: yugabyte-db/src
+        env:
+          PYTHONPATH: ${{ github.workspace }}/yugabyte-db/src
         run: |
           python api.py &
-          sleep 5
+          sleep 15
           python tests/concurrency_test.py --threads 5 --product 3
           python tests/concurrency_test.py --threads 20 --product 3
