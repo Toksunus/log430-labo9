@@ -76,3 +76,6 @@ if __name__ == "__main__":
     _ensure_version_column(session)
     session.close()
     app.run(host="0.0.0.0", port=5000, debug=False)
+
+
+# For more details, see
