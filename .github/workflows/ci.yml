@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: self-hosted
+
+    services:
+      yugabyte:
+        image: yugabytedb/yugabyte:latest
+        ports:
+          - 5433:5433
+          - 7000:7000
+        options: >-
+          --health-cmd="curl -sf http://localhost:7000/api/v1/masters | grep -q LEADER"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=60s
+        env:
+          YUGABYTE_USER: yugabyte
+          YUGABYTE_PASSWORD: yugabyte
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: yugabyte-db
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env file
+        working-directory: yugabyte-db
+        run: |
+          echo "DB_HOST=127.0.0.1" >> .env
+          echo "DB_PORT=5433" >> .env
+          echo "DB_NAME=yugabyte" >> .env
+          echo "DB_USER=yugabyte" >> .env
+          echo "DB_PASSWORD=yugabyte" >> .env
+
+      - name: Initialize database schema
+        run: |
+          psql -h 127.0.0.1 -p 5433 -U yugabyte -d yugabyte -f yugabyte-db/db-init/init.sql
+        env:
+          PGPASSWORD: yugabyte
+
+      - name: Start Flask API
+        working-directory: yugabyte-db/src
+        run: |
+          python api.py &
+          sleep 10
+
+      - name: Run concurrency test – 5 threads
+        working-directory: yugabyte-db/src
+        run: python tests/concurrency_test.py --threads 5 --product 3
+
+      - name: Run concurrency test – 20 threads
+        working-directory: yugabyte-db/src
+        run: python tests/concurrency_test.py --threads 20 --product 3
+
+      - name: Verify stock of product 3 is 0
+        run: |
+          QUANTITY=$(curl -sf http://localhost:5000/stocks | python3 -c "import sys,json; print(next(s['quantity'] for s in json.load(sys.stdin) if s['product_id']==3))")
+          echo "Stock produit 3 : $QUANTITY"
+          [ "$QUANTITY" -eq 0 ] || (echo "ERREUR: stock devrait être 0" && exit 1)
