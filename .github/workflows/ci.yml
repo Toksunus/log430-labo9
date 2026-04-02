@@ -21,7 +21,7 @@ jobs:
         run: |
           docker run -d --name yugabyte -p 5433:5433 \
             yugabytedb/yugabyte:latest \
-            bash -c "/home/yugabyte/bin/yugabyted start --daemon=false"
+            bash -c "/home/yugabyte/bin/yugabyted start --advertise_address=127.0.0.1 --tserver_flags=ysql_enable_auth=false --daemon=false"
           sleep 100
 
       - name: Install dependencies
